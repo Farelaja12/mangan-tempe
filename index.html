@@ -242,5 +242,249 @@
       card.style.transform = `perspective(900px) rotateY(${x}deg) rotateX(${y}deg)`;
     });
   </script>
+  <!-- ===== MULAI: ANIMASI LABA-LABA (tempel tepat sebelum </body>) ===== -->
+<style>
+  #spiders {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 5;
+    pointer-events: none;
+  }
+  .spider-hint {
+    position: fixed;
+    bottom: 12px;
+    left: 0;
+    right: 0;
+    z-index: 6;
+    text-align: center;
+    font-family: system-ui, sans-serif;
+    font-size: 12px;
+    color: rgba(200, 210, 240, .55);
+    pointer-events: none;
+  }
+</style>
+
+<canvas id="spiders"></canvas>
+<div class="spider-hint">🕷️ Gerakkan kursor dan klik layar untuk memanggil laba-laba</div>
+
+<script>
+  (function () {
+    const canvas = document.getElementById('spiders');
+    const ctx = canvas.getContext('2d');
+    let W = 0, H = 0;
+
+    function resize() {
+      const dpr = window.devicePixelRatio || 1;
+      W = innerWidth; H = innerHeight;
+      canvas.width = W * dpr;
+      canvas.height = H * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    resize();
+    addEventListener('resize', resize);
+
+    const mouse = { x: W / 2, y: H / 2, last: 0 };
+    addEventListener('pointermove', e => {
+      mouse.x = e.clientX; mouse.y = e.clientY; mouse.last = performance.now();
+    });
+
+    const LEG_COLOR = 'rgba(196, 181, 253, 0.95)';
+    const GLOW = '#8b5cf6';
+
+    // --- Laba-laba berjalan (kaki dengan IK 2 ruas) ---
+    class Spider {
+      constructor(x, y, scale) {
+        this.x = x; this.y = y;
+        this.scale = scale;
+        this.angle = Math.random() * Math.PI * 2;
+        this.speed = 0;
+        this.maxSpeed = 2.6 * scale + Math.random() * 0.8;
+        this.target = { x, y };
+        this.pickWander();
+        this.reach = 62 * scale;
+        this.legs = [];
+        const offs = [-0.75, -0.25, 0.25, 0.75];
+        for (let side = -1; side <= 1; side += 2) {
+          for (let k = 0; k < 4; k++) {
+            const leg = {
+              side, off: offs[k],
+              group: (k + (side > 0 ? 0 : 1)) % 2,
+              fx: 0, fy: 0, sx: 0, sy: 0, tx: 0, ty: 0, t: 1
+            };
+            const d = this.desired(leg);
+            leg.fx = leg.tx = leg.sx = d.x;
+            leg.fy = leg.ty = leg.sy = d.y;
+            this.legs.push(leg);
+          }
+        }
+      }
+      pickWander() {
+        this.target.x = 60 + Math.random() * (W - 120);
+        this.target.y = 60 + Math.random() * (H - 120);
+      }
+      desired(leg) {
+        const dir = this.angle + leg.side * (Math.PI / 2 + leg.off);
+        const lead = this.speed * 7;
+        return {
+          x: this.x + Math.cos(dir) * this.reach + Math.cos(this.angle) * lead,
+          y: this.y + Math.sin(dir) * this.reach + Math.sin(this.angle) * lead
+        };
+      }
+      update(now) {
+        const active = now - mouse.last < 3500;
+        if (active) { this.target.x = mouse.x; this.target.y = mouse.y; }
+        let dx = this.target.x - this.x, dy = this.target.y - this.y;
+        let dist = Math.hypot(dx, dy);
+        if (dist < 50 * this.scale) {
+          if (!active) this.pickWander();
+        }
+        const want = Math.atan2(dy, dx);
+        let diff = want - this.angle;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        this.angle += diff * 0.07;
+        const goal = dist < 50 * this.scale ? 0 : Math.min(this.maxSpeed, dist * 0.04 + 0.6);
+        this.speed += (goal - this.speed) * 0.08;
+        this.x += Math.cos(this.angle) * this.speed;
+        this.y += Math.sin(this.angle) * this.speed;
+
+        const stepping = [false, false];
+        for (const l of this.legs) if (l.t < 1) stepping[l.group] = true;
+        for (const l of this.legs) {
+          if (l.t < 1) {
+            l.t = Math.min(1, l.t + 0.2);
+            const e = l.t * l.t * (3 - 2 * l.t);
+            l.fx = l.sx + (l.tx - l.sx) * e;
+            l.fy = l.sy + (l.ty - l.sy) * e;
+          } else {
+            const d = this.desired(l);
+            if (Math.hypot(d.x - l.fx, d.y - l.fy) > this.reach * 0.5 && !stepping[1 - l.group]) {
+              l.sx = l.fx; l.sy = l.fy; l.tx = d.x; l.ty = d.y; l.t = 0;
+              stepping[l.group] = true;
+            }
+          }
+        }
+      }
+      draw() {
+        const s = this.scale;
+        ctx.save();
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.shadowColor = GLOW;
+        ctx.shadowBlur = 10;
+
+        ctx.strokeStyle = LEG_COLOR;
+        ctx.lineWidth = 2.2 * s;
+        const L = this.reach * 0.62;
+        for (const l of this.legs) {
+          const dir = this.angle + l.side * (Math.PI / 2 + l.off);
+          const hx = this.x + Math.cos(dir) * 9 * s;
+          const hy = this.y + Math.sin(dir) * 9 * s;
+          let dx = l.fx - hx, dy = l.fy - hy;
+          let d = Math.hypot(dx, dy) || 1;
+          const dd = Math.min(d, L * 2 - 0.5);
+          const h = Math.sqrt(Math.max(0, L * L - (dd / 2) * (dd / 2)));
+          const mx = hx + dx / d * dd / 2, my = hy + dy / d * dd / 2;
+          const kx = mx + (-dy / d) * h * l.side;
+          const ky = my + (dx / d) * h * l.side;
+          ctx.beginPath();
+          ctx.moveTo(hx, hy);
+          ctx.lineTo(kx, ky);
+          ctx.lineTo(hx + dx / d * dd, hy + dy / d * dd);
+          ctx.stroke();
+        }
+
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+        const grad = ctx.createRadialGradient(-12 * s, -3 * s, 2, -12 * s, 0, 18 * s);
+        grad.addColorStop(0, '#6d28d9');
+        grad.addColorStop(1, '#14082e');
+        ctx.fillStyle = grad;
+        ctx.strokeStyle = '#a78bfa';
+        ctx.lineWidth = 1.4 * s;
+        ctx.beginPath(); ctx.ellipse(-13 * s, 0, 15 * s, 11 * s, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#1b0f3d';
+        ctx.beginPath(); ctx.ellipse(4 * s, 0, 9 * s, 7.5 * s, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#ec4899';
+        ctx.beginPath(); ctx.ellipse(-14 * s, 0, 5 * s, 2.6 * s, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowColor = '#22d3ee'; ctx.shadowBlur = 8;
+        ctx.fillStyle = '#67e8f9';
+        for (const ey of [-2.6, 2.6]) {
+          ctx.beginPath(); ctx.arc(10 * s, ey * s, 1.8 * s, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.restore();
+      }
+    }
+
+    // --- Laba-laba menggantung di benang ---
+    class Hanger {
+      constructor(x, len, scale, phase) {
+        this.x = x; this.len = len; this.scale = scale; this.phase = phase;
+      }
+      draw(t) {
+        const s = this.scale;
+        const y = this.len + Math.sin(t * 0.0012 + this.phase) * this.len * 0.22;
+        const x = this.x + Math.sin(t * 0.0008 + this.phase) * 6;
+        ctx.save();
+        ctx.shadowColor = GLOW; ctx.shadowBlur = 8;
+        ctx.strokeStyle = 'rgba(220, 225, 255, 0.55)';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(this.x, 0); ctx.lineTo(x, y); ctx.stroke();
+
+        ctx.translate(x, y);
+        ctx.strokeStyle = LEG_COLOR;
+        ctx.lineWidth = 1.8 * s;
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        for (let side = -1; side <= 1; side += 2) {
+          for (let k = 0; k < 4; k++) {
+            const a = (k - 1.5) * 0.42 + Math.sin(t * 0.006 + k + this.phase) * 0.18;
+            const bx = side * 8 * s, by = (k - 1.5) * 3 * s;
+            const kx = bx + side * 18 * s * Math.cos(a), ky = by - 14 * s + a * 14 * s;
+            const fx = kx + side * 6 * s, fy = ky + 22 * s;
+            ctx.beginPath(); ctx.moveTo(bx * 0.4, by); ctx.lineTo(kx, ky); ctx.lineTo(fx, fy); ctx.stroke();
+          }
+        }
+        const g = ctx.createRadialGradient(-2 * s, 2 * s, 1, 0, 6 * s, 14 * s);
+        g.addColorStop(0, '#6d28d9'); g.addColorStop(1, '#14082e');
+        ctx.fillStyle = g; ctx.strokeStyle = '#a78bfa'; ctx.lineWidth = 1.3 * s;
+        ctx.beginPath(); ctx.ellipse(0, 9 * s, 10 * s, 13 * s, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#1b0f3d';
+        ctx.beginPath(); ctx.ellipse(0, -5 * s, 7 * s, 6 * s, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.shadowColor = '#22d3ee'; ctx.shadowBlur = 8; ctx.fillStyle = '#67e8f9';
+        for (const ex of [-2.6, 2.6]) { ctx.beginPath(); ctx.arc(ex * s, -7 * s, 1.6 * s, 0, Math.PI * 2); ctx.fill(); }
+        ctx.restore();
+      }
+    }
+
+    const spiders = [
+      new Spider(W * 0.15, H * 0.85, 1),
+      new Spider(W * 0.85, H * 0.2, 0.8)
+    ];
+    const hangers = [
+      new Hanger(W * 0.08, 90, 0.9, 0),
+      new Hanger(W * 0.9, 150, 1.1, 2),
+      new Hanger(W * 0.7, 60, 0.7, 4)
+    ];
+
+    addEventListener('pointerdown', e => {
+      if (spiders.length >= 8) spiders.shift();
+      spiders.push(new Spider(e.clientX, e.clientY, 0.6 + Math.random() * 0.6));
+    });
+
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    function loop(now) {
+      ctx.clearRect(0, 0, W, H);
+      for (const h of hangers) h.draw(now);
+      for (const s of spiders) { if (!reduce) s.update(now); s.draw(); }
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  })();
+</script>
+<!-- ===== SELESAI: ANIMASI LABA-LABA ===== -->
 </body>
 </html>
