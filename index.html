@@ -597,5 +597,247 @@
   })();
 </script>
 <!-- ===== SELESAI: ANIMASI JARINGAN CLOUD ===== -->
+  <!-- ===== MULAI: LATAR KOTA MALAM (tempel sebelum </body>) ===== -->
+<style>
+  #kota {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    pointer-events: none;
+  }
+</style>
+
+<canvas id="kota"></canvas>
+
+<script>
+  (function () {
+    const cv = document.getElementById('kota');
+    const c = cv.getContext('2d');
+    let W = 0, H = 0, layers = [], stars = [], cars = [];
+    let shoot = null, nextShoot = 3000;
+    const mouse = { x: 0.5, sx: 0.5 };
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    function mulberry32(a) {
+      return function () {
+        a |= 0; a = a + 0x6D2B79F5 | 0;
+        let t = Math.imul(a ^ a >>> 15, 1 | a);
+        t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+      };
+    }
+
+    const WARM = ['#fde68a', '#fcd34d', '#fff7d6', '#fde68a', '#fbbf24'];
+    const COOL = ['#67e8f9', '#f9a8d4', '#a5b4fc'];
+
+    const CFG = [
+      { seed: 11, color: '#141a47', top: 'rgba(167,139,250,.35)', hMin: .16, hMax: .36, wMin: 50, wMax: 100, cw: 12, ch: 17, lit: .22, par: 8,  alpha: .55 },
+      { seed: 29, color: '#0c1030', top: 'rgba(103,232,249,.28)', hMin: .22, hMax: .48, wMin: 60, wMax: 120, cw: 13, ch: 18, lit: .32, par: 18, alpha: .8 },
+      { seed: 53, color: '#05071a', top: 'rgba(236,72,153,.35)',  hMin: .26, hMax: .58, wMin: 70, wMax: 140, cw: 14, ch: 19, lit: .42, par: 34, alpha: 1 }
+    ];
+
+    function build() {
+      const dpr = window.devicePixelRatio || 1;
+      W = innerWidth; H = innerHeight;
+      cv.width = W * dpr; cv.height = H * dpr;
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      layers = CFG.map(cfg => {
+        const rnd = mulberry32(cfg.seed);
+        const bs = [];
+        let x = -90;
+        while (x < W + 90) {
+          const w = cfg.wMin + rnd() * (cfg.wMax - cfg.wMin);
+          const h = Math.max(80, H * (cfg.hMin + rnd() * (cfg.hMax - cfg.hMin)));
+          const r = rnd();
+          const roof = r < .22 ? 1 : (r < .45 ? 2 : 0);
+          const cols = Math.max(1, Math.floor((w - 12) / cfg.cw));
+          const rows = Math.max(1, Math.floor((h - 26) / cfg.ch));
+          const offX = (w - cols * cfg.cw) / 2 + 1;
+          const wins = [];
+          for (let rr = 0; rr < rows; rr++) {
+            for (let cc = 0; cc < cols; cc++) {
+              const cool = rnd() < .12;
+              const pal = cool ? COOL : WARM;
+              wins.push({
+                x: offX + cc * cfg.cw, y: 16 + rr * cfg.ch,
+                lit: rnd() < cfg.lit,
+                col: pal[Math.floor(rnd() * pal.length)]
+              });
+            }
+          }
+          bs.push({ x, w, h, roof, wins, ph: rnd() * 6 });
+          x += w + rnd() * 6;
+        }
+        return { cfg, bs };
+      });
+
+      stars = Array.from({ length: Math.floor(W * H / 9000) }, () => ({
+        x: Math.random() * W,
+        y: Math.random() * H * 0.62,
+        r: Math.random() * 1.2 + .3,
+        p: Math.random() * 6
+      }));
+
+      cars = Array.from({ length: 9 }, (_, i) => ({
+        x: Math.random() * W,
+        dir: i % 2 ? 1 : -1,
+        lane: i % 2 ? 0 : 1,
+        v: .8 + Math.random() * 1.6
+      }));
+    }
+    build();
+    addEventListener('resize', build);
+    addEventListener('pointermove', e => { mouse.x = e.clientX / innerWidth; });
+
+    function drawSky(t) {
+      const g = c.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, '#04061a');
+      g.addColorStop(.5, '#17104a');
+      g.addColorStop(.85, '#4a2282');
+      g.addColorStop(1, '#7a2f8f');
+      c.fillStyle = g; c.fillRect(0, 0, W, H);
+
+      // cahaya horizon
+      const hg = c.createRadialGradient(W * .5, H, 10, W * .5, H, Math.max(W, H) * .7);
+      hg.addColorStop(0, 'rgba(236,72,153,.30)');
+      hg.addColorStop(1, 'rgba(236,72,153,0)');
+      c.fillStyle = hg; c.fillRect(0, 0, W, H);
+
+      // bintang
+      for (const s of stars) {
+        const a = .35 + .65 * Math.abs(Math.sin(t * .0015 + s.p));
+        c.fillStyle = `rgba(255,255,255,${a})`;
+        c.beginPath(); c.arc(s.x, s.y, s.r, 0, Math.PI * 2); c.fill();
+      }
+
+      // bulan
+      const mx = W * .8, my = Math.min(150, H * .2), mr = 26;
+      const mg = c.createRadialGradient(mx, my, mr * .6, mx, my, mr * 4);
+      mg.addColorStop(0, 'rgba(253,246,214,.35)');
+      mg.addColorStop(1, 'rgba(253,246,214,0)');
+      c.fillStyle = mg; c.fillRect(mx - mr * 4, my - mr * 4, mr * 8, mr * 8);
+      c.fillStyle = '#fdf6d6';
+      c.beginPath(); c.arc(mx, my, mr, 0, Math.PI * 2); c.fill();
+      c.fillStyle = 'rgba(190,175,140,.35)';
+      c.beginPath(); c.arc(mx - 8, my - 5, 5, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(mx + 7, my + 8, 3.6, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(mx + 9, my - 9, 2.6, 0, Math.PI * 2); c.fill();
+
+      // bintang jatuh
+      if (!reduce) {
+        if (!shoot && t > nextShoot) {
+          shoot = { x: Math.random() * W * .8 + W * .1, y: Math.random() * H * .25, l: 0 };
+        }
+        if (shoot) {
+          shoot.l += 9;
+          const x2 = shoot.x + shoot.l * .8, y2 = shoot.y + shoot.l * .45;
+          const sg = c.createLinearGradient(shoot.x + (shoot.l - 90) * .8, shoot.y + (shoot.l - 90) * .45, x2, y2);
+          sg.addColorStop(0, 'rgba(255,255,255,0)');
+          sg.addColorStop(1, 'rgba(255,255,255,.95)');
+          c.strokeStyle = sg; c.lineWidth = 2; c.lineCap = 'round';
+          c.beginPath();
+          c.moveTo(shoot.x + Math.max(0, shoot.l - 90) * .8, shoot.y + Math.max(0, shoot.l - 90) * .45);
+          c.lineTo(x2, y2); c.stroke();
+          if (shoot.l > 420) { shoot = null; nextShoot = t + 5000 + Math.random() * 7000; }
+        }
+      }
+    }
+
+    function drawLayer(L, li, t) {
+      const { cfg, bs } = L;
+      const off = (mouse.sx - .5) * -cfg.par;
+      c.save();
+      c.translate(off, 0);
+      for (const b of bs) {
+        const top = H - b.h;
+        c.fillStyle = cfg.color;
+        c.fillRect(b.x, top, b.w, b.h + 2);
+        if (b.roof === 2) c.fillRect(b.x + b.w * .2, top - 14, b.w * .6, 15);
+        // garis cahaya di atap
+        c.fillStyle = cfg.top;
+        c.fillRect(b.x, top, b.w, 1.5);
+        // antena + lampu merah berkedip
+        if (b.roof === 1) {
+          c.strokeStyle = cfg.color; c.lineWidth = 2;
+          c.beginPath(); c.moveTo(b.x + b.w / 2, top); c.lineTo(b.x + b.w / 2, top - 30); c.stroke();
+          if (li > 0) {
+            const a = .25 + .75 * (Math.sin(t * .004 + b.ph) > 0 ? 1 : 0);
+            c.fillStyle = `rgba(255,70,90,${a})`;
+            c.shadowColor = '#ff465a'; c.shadowBlur = 10;
+            c.beginPath(); c.arc(b.x + b.w / 2, top - 31, 2.2, 0, Math.PI * 2); c.fill();
+            c.shadowBlur = 0;
+          }
+        }
+        // jendela menyala
+        c.globalAlpha = cfg.alpha;
+        for (const w of b.wins) {
+          if (!w.lit) continue;
+          c.fillStyle = w.col;
+          c.fillRect(b.x + w.x, top + w.y, 5, 8);
+        }
+        c.globalAlpha = 1;
+      }
+      c.restore();
+
+      // jendela berkedip acak (kota hidup)
+      if (!reduce) {
+        for (let n = 0; n < 4; n++) {
+          const b = bs[Math.floor(Math.random() * bs.length)];
+          const w = b.wins[Math.floor(Math.random() * b.wins.length)];
+          if (w) w.lit = !w.lit;
+        }
+      }
+    }
+
+    function fog(alpha) {
+      const g = c.createLinearGradient(0, H * .45, 0, H);
+      g.addColorStop(0, 'rgba(120,50,150,0)');
+      g.addColorStop(1, `rgba(236,72,153,${alpha})`);
+      c.fillStyle = g; c.fillRect(0, H * .45, W, H * .55);
+    }
+
+    function drawStreet() {
+      c.fillStyle = '#04050f';
+      c.fillRect(0, H - 14, W, 14);
+      for (const car of cars) {
+        if (!reduce) {
+          car.x += car.dir * car.v;
+          if (car.x > W + 40) car.x = -40;
+          if (car.x < -40) car.x = W + 40;
+        }
+        const y = H - 9 + car.lane * 5;
+        const head = car.dir > 0;
+        const col = head ? '255,240,190' : '255,60,80';
+        const g = c.createLinearGradient(car.x, 0, car.x - car.dir * 26, 0);
+        g.addColorStop(0, `rgba(${col},.9)`);
+        g.addColorStop(1, `rgba(${col},0)`);
+        c.strokeStyle = g; c.lineWidth = 2; c.lineCap = 'round';
+        c.beginPath(); c.moveTo(car.x, y); c.lineTo(car.x - car.dir * 26, y); c.stroke();
+        c.fillStyle = `rgb(${col})`;
+        c.shadowColor = `rgb(${col})`; c.shadowBlur = 8;
+        c.beginPath(); c.arc(car.x, y, 1.8, 0, Math.PI * 2); c.fill();
+        c.shadowBlur = 0;
+      }
+    }
+
+    function frame(t) {
+      mouse.sx += (mouse.x - mouse.sx) * .05;
+      c.clearRect(0, 0, W, H);
+      drawSky(t);
+      drawLayer(layers[0], 0, t);
+      fog(.14);
+      drawLayer(layers[1], 1, t);
+      fog(.10);
+      drawLayer(layers[2], 2, t);
+      drawStreet();
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  })();
+</script>
+<!-- ===== SELESAI: LATAR KOTA MALAM ===== -->
 </body>
 </html>
