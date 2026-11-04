@@ -486,5 +486,116 @@
   })();
 </script>
 <!-- ===== SELESAI: ANIMASI LABA-LABA ===== -->
+  <!-- ===== MULAI: ANIMASI JARINGAN CLOUD (tempel sebelum </body>) ===== -->
+<style>
+  #jaringan {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+  }
+</style>
+
+<canvas id="jaringan"></canvas>
+
+<script>
+  (function () {
+    const cv = document.getElementById('jaringan');
+    const c = cv.getContext('2d');
+    let W = 0, H = 0, nodes = [];
+    const mouse = { x: -999, y: -999, on: false };
+    const ripples = [];
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    function init() {
+      const dpr = window.devicePixelRatio || 1;
+      W = innerWidth; H = innerHeight;
+      cv.width = W * dpr; cv.height = H * dpr;
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const n = Math.min(90, Math.floor((W * H) / 16000));
+      nodes = Array.from({ length: n }, () => ({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        vx: (Math.random() - .5) * .5,
+        vy: (Math.random() - .5) * .5,
+        r: Math.random() * 1.8 + 1,
+        hue: 190 + Math.random() * 120   // cyan -> ungu -> pink
+      }));
+    }
+    init();
+    addEventListener('resize', init);
+
+    addEventListener('pointermove', e => { mouse.x = e.clientX; mouse.y = e.clientY; mouse.on = true; });
+    addEventListener('pointerleave', () => { mouse.on = false; });
+    addEventListener('pointerdown', e => ripples.push({ x: e.clientX, y: e.clientY, r: 0, a: 1 }));
+
+    function frame() {
+      c.clearRect(0, 0, W, H);
+
+      // gerakkan node
+      for (const p of nodes) {
+        if (!reduce) {
+          p.x += p.vx; p.y += p.vy;
+          if (p.x < 0 || p.x > W) p.vx *= -1;
+          if (p.y < 0 || p.y > H) p.vy *= -1;
+          if (mouse.on) {
+            const dx = mouse.x - p.x, dy = mouse.y - p.y, d = Math.hypot(dx, dy);
+            if (d < 200 && d > 1) { p.x += dx / d * 0.35; p.y += dy / d * 0.35; }
+          }
+        }
+      }
+
+      // garis antar node
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const a = nodes[i], b = nodes[j];
+          const d = Math.hypot(a.x - b.x, a.y - b.y);
+          if (d < 130) {
+            c.strokeStyle = `hsla(${(a.hue + b.hue) / 2}, 90%, 70%, ${(1 - d / 130) * 0.35})`;
+            c.lineWidth = 1;
+            c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.stroke();
+          }
+        }
+        // garis ke kursor
+        if (mouse.on) {
+          const a = nodes[i];
+          const d = Math.hypot(a.x - mouse.x, a.y - mouse.y);
+          if (d < 190) {
+            c.strokeStyle = `hsla(${a.hue}, 100%, 75%, ${(1 - d / 190) * 0.7})`;
+            c.lineWidth = 1.4;
+            c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(mouse.x, mouse.y); c.stroke();
+          }
+        }
+      }
+
+      // titik node bercahaya
+      for (const p of nodes) {
+        c.shadowColor = `hsl(${p.hue}, 100%, 65%)`;
+        c.shadowBlur = 10;
+        c.fillStyle = `hsl(${p.hue}, 100%, 75%)`;
+        c.beginPath(); c.arc(p.x, p.y, p.r, 0, Math.PI * 2); c.fill();
+      }
+      c.shadowBlur = 0;
+
+      // gelombang saat klik
+      for (let k = ripples.length - 1; k >= 0; k--) {
+        const r = ripples[k];
+        r.r += 4; r.a -= 0.018;
+        if (r.a <= 0) { ripples.splice(k, 1); continue; }
+        c.strokeStyle = `rgba(103, 232, 249, ${r.a})`;
+        c.lineWidth = 2;
+        c.beginPath(); c.arc(r.x, r.y, r.r, 0, Math.PI * 2); c.stroke();
+        c.strokeStyle = `rgba(236, 72, 153, ${r.a * 0.7})`;
+        c.beginPath(); c.arc(r.x, r.y, r.r * 0.6, 0, Math.PI * 2); c.stroke();
+      }
+
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  })();
+</script>
+<!-- ===== SELESAI: ANIMASI JARINGAN CLOUD ===== -->
 </body>
 </html>
