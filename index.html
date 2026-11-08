@@ -486,118 +486,7 @@
   })();
 </script>
 <!-- ===== SELESAI: ANIMASI LABA-LABA ===== -->
-  <!-- ===== MULAI: ANIMASI JARINGAN CLOUD (tempel sebelum </body>) ===== -->
-<style>
-  #jaringan {
-    position: fixed;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 0;
-    pointer-events: none;
-  }
-</style>
-
-<canvas id="jaringan"></canvas>
-
-<script>
-  (function () {
-    const cv = document.getElementById('jaringan');
-    const c = cv.getContext('2d');
-    let W = 0, H = 0, nodes = [];
-    const mouse = { x: -999, y: -999, on: false };
-    const ripples = [];
-    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-    function init() {
-      const dpr = window.devicePixelRatio || 1;
-      W = innerWidth; H = innerHeight;
-      cv.width = W * dpr; cv.height = H * dpr;
-      c.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const n = Math.min(90, Math.floor((W * H) / 16000));
-      nodes = Array.from({ length: n }, () => ({
-        x: Math.random() * W,
-        y: Math.random() * H,
-        vx: (Math.random() - .5) * .5,
-        vy: (Math.random() - .5) * .5,
-        r: Math.random() * 1.8 + 1,
-        hue: 190 + Math.random() * 120   // cyan -> ungu -> pink
-      }));
-    }
-    init();
-    addEventListener('resize', init);
-
-    addEventListener('pointermove', e => { mouse.x = e.clientX; mouse.y = e.clientY; mouse.on = true; });
-    addEventListener('pointerleave', () => { mouse.on = false; });
-    addEventListener('pointerdown', e => ripples.push({ x: e.clientX, y: e.clientY, r: 0, a: 1 }));
-
-    function frame() {
-      c.clearRect(0, 0, W, H);
-
-      // gerakkan node
-      for (const p of nodes) {
-        if (!reduce) {
-          p.x += p.vx; p.y += p.vy;
-          if (p.x < 0 || p.x > W) p.vx *= -1;
-          if (p.y < 0 || p.y > H) p.vy *= -1;
-          if (mouse.on) {
-            const dx = mouse.x - p.x, dy = mouse.y - p.y, d = Math.hypot(dx, dy);
-            if (d < 200 && d > 1) { p.x += dx / d * 0.35; p.y += dy / d * 0.35; }
-          }
-        }
-      }
-
-      // garis antar node
-      for (let i = 0; i < nodes.length; i++) {
-        for (let j = i + 1; j < nodes.length; j++) {
-          const a = nodes[i], b = nodes[j];
-          const d = Math.hypot(a.x - b.x, a.y - b.y);
-          if (d < 130) {
-            c.strokeStyle = `hsla(${(a.hue + b.hue) / 2}, 90%, 70%, ${(1 - d / 130) * 0.35})`;
-            c.lineWidth = 1;
-            c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.stroke();
-          }
-        }
-        // garis ke kursor
-        if (mouse.on) {
-          const a = nodes[i];
-          const d = Math.hypot(a.x - mouse.x, a.y - mouse.y);
-          if (d < 190) {
-            c.strokeStyle = `hsla(${a.hue}, 100%, 75%, ${(1 - d / 190) * 0.7})`;
-            c.lineWidth = 1.4;
-            c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(mouse.x, mouse.y); c.stroke();
-          }
-        }
-      }
-
-      // titik node bercahaya
-      for (const p of nodes) {
-        c.shadowColor = `hsl(${p.hue}, 100%, 65%)`;
-        c.shadowBlur = 10;
-        c.fillStyle = `hsl(${p.hue}, 100%, 75%)`;
-        c.beginPath(); c.arc(p.x, p.y, p.r, 0, Math.PI * 2); c.fill();
-      }
-      c.shadowBlur = 0;
-
-      // gelombang saat klik
-      for (let k = ripples.length - 1; k >= 0; k--) {
-        const r = ripples[k];
-        r.r += 4; r.a -= 0.018;
-        if (r.a <= 0) { ripples.splice(k, 1); continue; }
-        c.strokeStyle = `rgba(103, 232, 249, ${r.a})`;
-        c.lineWidth = 2;
-        c.beginPath(); c.arc(r.x, r.y, r.r, 0, Math.PI * 2); c.stroke();
-        c.strokeStyle = `rgba(236, 72, 153, ${r.a * 0.7})`;
-        c.beginPath(); c.arc(r.x, r.y, r.r * 0.6, 0, Math.PI * 2); c.stroke();
-      }
-
-      requestAnimationFrame(frame);
-    }
-    requestAnimationFrame(frame);
-  })();
-</script>
-<!-- ===== SELESAI: ANIMASI JARINGAN CLOUD ===== -->
-  <!-- ===== MULAI: LATAR KOTA MALAM (tempel sebelum </body>) ===== -->
+  <!-- ===== MULAI: LATAR KOTA MALAM + BILBOARD FOTO (tempel sebelum </body>) ===== -->
 <style>
   #kota {
     position: fixed;
@@ -613,12 +502,22 @@
 
 <script>
   (function () {
+    // ====== PENGATURAN BILBOARD ======
+    const FOTO_SRC = 'foto.jpg';   // nama file foto (simpan satu folder dengan index.html)
+    const TEKS_BILBOARD = '';      // opsional, mis. 'FAREL' (kosongkan kalau tidak mau teks)
+    // =================================
+
     const cv = document.getElementById('kota');
     const c = cv.getContext('2d');
     let W = 0, H = 0, layers = [], stars = [], cars = [];
     let shoot = null, nextShoot = 3000;
     const mouse = { x: 0.5, sx: 0.5 };
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    const foto = new Image();
+    let fotoOk = false;
+    foto.onload = function () { fotoOk = true; };
+    foto.src = FOTO_SRC;
 
     function mulberry32(a) {
       return function () {
@@ -674,6 +573,8 @@
         return { cfg, bs };
       });
 
+      placeBoard();
+
       stars = Array.from({ length: Math.floor(W * H / 9000) }, () => ({
         x: Math.random() * W,
         y: Math.random() * H * 0.62,
@@ -688,9 +589,145 @@
         v: .8 + Math.random() * 1.6
       }));
     }
+
+    // Pilih gedung di sisi kiri untuk dipasangi bilboard
+    function placeBoard() {
+      const bs = layers[1].bs;
+      let best = null, bestScore = -1e9;
+      for (const b of bs) {
+        const cx = b.x + b.w / 2;
+        if (cx < W * .05 || cx > W * .36) continue;
+        if (H - b.h < 170) continue;
+        const score = -Math.abs(cx - W * .19);
+        if (score > bestScore) { bestScore = score; best = b; }
+      }
+      if (!best) {
+        let maxRoom = -1;
+        for (const b of bs) {
+          const cx = b.x + b.w / 2;
+          if (cx < 0 || cx > W) continue;
+          if (H - b.h > maxRoom) { maxRoom = H - b.h; best = b; }
+        }
+      }
+      if (!best) return;
+      const post = 22;
+      const target = Math.min(190, Math.max(110, W * .11));
+      let bh = Math.min(target * 1.15, H - best.h - post - 30);
+      bh = Math.max(70, bh);
+      best.roof = 0;
+      best.board = { w: bh / 1.15, h: bh, post: post };
+    }
+
     build();
     addEventListener('resize', build);
     addEventListener('pointermove', e => { mouse.x = e.clientX / innerWidth; });
+
+    function drawCover(img, x, y, w, h) {
+      const ir = img.width / img.height, br = w / h;
+      let sw, sh, sx, sy;
+      if (ir > br) { sh = img.height; sw = sh * br; sx = (img.width - sw) / 2; sy = 0; }
+      else { sw = img.width; sh = sw / br; sx = 0; sy = (img.height - sh) * 0.2; }
+      c.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+    }
+
+    function drawBoard(b, top, t) {
+      const bd = b.board;
+      const cx = b.x + b.w / 2;
+      const bx = cx - bd.w / 2;
+      const by = top - bd.post - bd.h;
+
+      // tiang & rangka
+      c.strokeStyle = '#1c2456';
+      c.lineWidth = 3;
+      c.beginPath();
+      c.moveTo(bx + bd.w * .2, top); c.lineTo(bx + bd.w * .2, by + bd.h);
+      c.moveTo(bx + bd.w * .8, top); c.lineTo(bx + bd.w * .8, by + bd.h);
+      c.stroke();
+      c.lineWidth = 1.5;
+      c.beginPath();
+      c.moveTo(bx + bd.w * .2, top); c.lineTo(bx + bd.w * .8, by + bd.h);
+      c.moveTo(bx + bd.w * .8, top); c.lineTo(bx + bd.w * .2, by + bd.h);
+      c.stroke();
+
+      // cahaya menyebar di sekitar bilboard
+      const gy = by + bd.h / 2;
+      const glow = c.createRadialGradient(cx, gy, 10, cx, gy, bd.w * 1.1);
+      glow.addColorStop(0, 'rgba(236,72,153,.34)');
+      glow.addColorStop(1, 'rgba(236,72,153,0)');
+      c.fillStyle = glow;
+      c.fillRect(cx - bd.w * 1.2, gy - bd.w * 1.2, bd.w * 2.4, bd.w * 2.4);
+
+      // bingkai neon
+      c.fillStyle = '#0a0d28';
+      c.fillRect(bx - 6, by - 6, bd.w + 12, bd.h + 12);
+      const ng = c.createLinearGradient(bx, by, bx + bd.w, by + bd.h);
+      ng.addColorStop(0, '#67e8f9');
+      ng.addColorStop(.5, '#a78bfa');
+      ng.addColorStop(1, '#ec4899');
+      c.strokeStyle = ng;
+      c.lineWidth = 3;
+      c.shadowColor = '#a78bfa';
+      c.shadowBlur = 16;
+      c.strokeRect(bx - 6, by - 6, bd.w + 12, bd.h + 12);
+      c.shadowBlur = 0;
+
+      // isi layar (foto)
+      c.save();
+      c.beginPath(); c.rect(bx, by, bd.w, bd.h); c.clip();
+      if (fotoOk) {
+        drawCover(foto, bx, by, bd.w, bd.h);
+      } else {
+        const pg = c.createLinearGradient(bx, by, bx + bd.w, by + bd.h);
+        pg.addColorStop(0, '#1e1b4b'); pg.addColorStop(1, '#581c87');
+        c.fillStyle = pg; c.fillRect(bx, by, bd.w, bd.h);
+        c.fillStyle = 'rgba(255,255,255,.7)';
+        c.font = '600 ' + Math.max(10, bd.w * .1) + 'px system-ui, sans-serif';
+        c.textAlign = 'center';
+        c.fillText(FOTO_SRC, cx, by + bd.h / 2);
+      }
+      // kedip tipis ala layar LED
+      c.fillStyle = 'rgba(0,0,0,' + (0.05 + 0.05 * Math.sin(t * .004 + b.ph)) + ')';
+      c.fillRect(bx, by, bd.w, bd.h);
+      // garis scanline
+      c.fillStyle = 'rgba(0,0,0,.14)';
+      for (let y = by; y < by + bd.h; y += 3) c.fillRect(bx, y, bd.w, 1);
+      // kilau kaca
+      const sheen = c.createLinearGradient(bx, by, bx + bd.w, by + bd.h);
+      sheen.addColorStop(0, 'rgba(255,255,255,.16)');
+      sheen.addColorStop(.45, 'rgba(255,255,255,0)');
+      c.fillStyle = sheen;
+      c.fillRect(bx, by, bd.w, bd.h);
+      // teks opsional
+      if (TEKS_BILBOARD) {
+        const fh = Math.max(14, bd.h * .13);
+        c.fillStyle = 'rgba(5,7,26,.72)';
+        c.fillRect(bx, by + bd.h - fh * 1.6, bd.w, fh * 1.6);
+        c.fillStyle = '#67e8f9';
+        c.shadowColor = '#67e8f9'; c.shadowBlur = 8;
+        c.font = '800 ' + fh + 'px system-ui, sans-serif';
+        c.textAlign = 'center';
+        c.fillText(TEKS_BILBOARD, cx, by + bd.h - fh * .45);
+        c.shadowBlur = 0;
+      }
+      c.restore();
+
+      // lampu sorot di atas bilboard
+      for (const f of [.2, .5, .8]) {
+        const lx = bx + bd.w * f;
+        c.fillStyle = 'rgba(255,240,190,.09)';
+        c.beginPath();
+        c.moveTo(lx, by - 8);
+        c.lineTo(lx - bd.w * .2, by + bd.h * .6);
+        c.lineTo(lx + bd.w * .2, by + bd.h * .6);
+        c.closePath(); c.fill();
+        c.strokeStyle = '#2a3270'; c.lineWidth = 2;
+        c.beginPath(); c.moveTo(lx, by - 6); c.lineTo(lx, by - 11); c.stroke();
+        c.fillStyle = '#fff6c9';
+        c.shadowColor = '#fde68a'; c.shadowBlur = 10;
+        c.beginPath(); c.arc(lx, by - 12, 2.4, 0, Math.PI * 2); c.fill();
+        c.shadowBlur = 0;
+      }
+    }
 
     function drawSky(t) {
       const g = c.createLinearGradient(0, 0, 0, H);
@@ -700,20 +737,17 @@
       g.addColorStop(1, '#7a2f8f');
       c.fillStyle = g; c.fillRect(0, 0, W, H);
 
-      // cahaya horizon
       const hg = c.createRadialGradient(W * .5, H, 10, W * .5, H, Math.max(W, H) * .7);
       hg.addColorStop(0, 'rgba(236,72,153,.30)');
       hg.addColorStop(1, 'rgba(236,72,153,0)');
       c.fillStyle = hg; c.fillRect(0, 0, W, H);
 
-      // bintang
       for (const s of stars) {
         const a = .35 + .65 * Math.abs(Math.sin(t * .0015 + s.p));
         c.fillStyle = `rgba(255,255,255,${a})`;
         c.beginPath(); c.arc(s.x, s.y, s.r, 0, Math.PI * 2); c.fill();
       }
 
-      // bulan
       const mx = W * .8, my = Math.min(150, H * .2), mr = 26;
       const mg = c.createRadialGradient(mx, my, mr * .6, mx, my, mr * 4);
       mg.addColorStop(0, 'rgba(253,246,214,.35)');
@@ -726,7 +760,6 @@
       c.beginPath(); c.arc(mx + 7, my + 8, 3.6, 0, Math.PI * 2); c.fill();
       c.beginPath(); c.arc(mx + 9, my - 9, 2.6, 0, Math.PI * 2); c.fill();
 
-      // bintang jatuh
       if (!reduce) {
         if (!shoot && t > nextShoot) {
           shoot = { x: Math.random() * W * .8 + W * .1, y: Math.random() * H * .25, l: 0 };
@@ -756,10 +789,8 @@
         c.fillStyle = cfg.color;
         c.fillRect(b.x, top, b.w, b.h + 2);
         if (b.roof === 2) c.fillRect(b.x + b.w * .2, top - 14, b.w * .6, 15);
-        // garis cahaya di atap
         c.fillStyle = cfg.top;
         c.fillRect(b.x, top, b.w, 1.5);
-        // antena + lampu merah berkedip
         if (b.roof === 1) {
           c.strokeStyle = cfg.color; c.lineWidth = 2;
           c.beginPath(); c.moveTo(b.x + b.w / 2, top); c.lineTo(b.x + b.w / 2, top - 30); c.stroke();
@@ -771,7 +802,7 @@
             c.shadowBlur = 0;
           }
         }
-        // jendela menyala
+        if (b.board) drawBoard(b, top, t);
         c.globalAlpha = cfg.alpha;
         for (const w of b.wins) {
           if (!w.lit) continue;
@@ -782,7 +813,6 @@
       }
       c.restore();
 
-      // jendela berkedip acak (kota hidup)
       if (!reduce) {
         for (let n = 0; n < 4; n++) {
           const b = bs[Math.floor(Math.random() * bs.length)];
@@ -838,6 +868,6 @@
     requestAnimationFrame(frame);
   })();
 </script>
-<!-- ===== SELESAI: LATAR KOTA MALAM ===== -->
+<!-- ===== SELESAI: LATAR KOTA MALAM + BILBOARD FOTO ===== -->
 </body>
 </html>
